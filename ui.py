@@ -1,12 +1,12 @@
-import gradio as gr
 import os
+import gradio as gr
 from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def run_interview_bot(job_domain, user_answer, action_type):
-    # --- DEFENSIVE CHECK: Intercept empty inputs before calling the cloud ---
+def run_interview_bot(job_domain, current_question, user_answer, action_type):
+    # Quick check so we don't waste an API call if they click evaluate on nothing
     if action_type == "Evaluate Answer" and not user_answer.strip():
         return "⚠️ Validation Error: Please type an answer in the text box before submitting for evaluation!"
     
@@ -17,7 +17,14 @@ def run_interview_bot(job_domain, user_answer, action_type):
             prompt = f"Generate one challenging entry-level technical interview question for a {job_domain} role. Do not provide the answer."
             system_instruction = "You are a senior technical interviewer at a top tech company. Be concise, realistic, and highly professional."
         else: 
-            prompt = f"The candidate is applying for a {job_domain} role. Evaluate this answer to the question: '{user_answer}'. Provide a score out of 10, list what was missing, and give the correct ideal answer."
+            # Now passing both the question and the answer so the AI can grade properly!
+            prompt = f"""
+            The candidate is applying for a {job_domain} role.
+            Interview Question asked: '{current_question}'
+            Candidate's Answer: '{user_answer}'
+            
+            Evaluate this answer. Provide a score out of 10, list what key points were missing, and give a great ideal answer.
+            """
             system_instruction = "You are an expert technical interviewer. Provide critical, constructive feedback, scoring rigorously like a real manager."
 
         response = client.models.generate_content(
@@ -28,17 +35,16 @@ def run_interview_bot(job_domain, user_answer, action_type):
         return response.text
         
     except Exception as e:
-        # Gracefully handle network dropouts or API limits
-        return gr.Warning(f"Cloud Connection Timeout: Please verify your internet connection. Details: {e}")
+        print(f"Error occurred: {str(e)}")
+        return f"Cloud Connection Timeout: Please check your terminal or API key. Details: {e}"
 
-# UI Interface Layout Design
+# UI Layout Using Gradio Blocks
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🏢 Real-Time AI Technical Interview Simulator")
     gr.Markdown("Select your target tech domain, generate a live question, and test your readiness.")
     
     with gr.Row():
         with gr.Column():
-            # Dropdown menu to choose the role
             domain_input = gr.Dropdown(
                 label="Target Engineering Role", 
                 choices=["Python Developer Intern", "Backend Engineer", "Data Analyst", "Frontend Developer"],
@@ -52,16 +58,17 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             submit_answer_btn = gr.Button("📊 Submit Answer for Evaluation", variant="primary")
             feedback_output = gr.Textbox(label="Detailed Performance Review & Score", interactive=False, lines=6)
 
-    # Connecting the buttons to our background logic functions
+    # 1. Generate Question Button Click
     question_btn.click(
-        fn=lambda domain: run_interview_bot(domain, "", "Generate Question"), 
+        fn=lambda domain: run_interview_bot(domain, "", "", "Generate Question"), 
         inputs=domain_input, 
         outputs=question_output
     )
     
+    # 2. Fixed Submit Answer Button Click (Now sending all 4 positional parameters!)
     submit_answer_btn.click(
-        fn=lambda domain, ans: run_interview_bot(domain, ans, "Evaluate Answer"), 
-        inputs=[domain_input, answer_input], 
+        fn=lambda domain, q, ans: run_interview_bot(domain, q, ans, "Evaluate Answer"), 
+        inputs=[domain_input, question_output, answer_input], 
         outputs=feedback_output
     )
 

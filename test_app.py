@@ -11,9 +11,10 @@ def test_empty_answer_validation():
     # 1. Simulate a user hitting 'Submit' with an empty string of spaces
     mock_user_input = "   " 
     
-    # 2. Execute the backend function using our test data
+    # 2. Execute the updated backend function (Now passing all 4 parameters!)
     test_result = run_interview_bot(
         job_domain="Python Developer Intern", 
+        current_question="What is a decorator in Python?",  # Added this matching parameter!
         user_answer=mock_user_input, 
         action_type="Evaluate Answer"
     )
